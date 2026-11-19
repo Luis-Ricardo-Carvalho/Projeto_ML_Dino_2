@@ -1,0 +1,8 @@
+{
+  "name": "DinoRL — Laboratório de Q-Learning",
+  "description": "Aplicação didática interativa em HTML, CSS e JavaScript para ensinar Aprendizagem por Reforço e Q-Learning com o jogo do dinossauro e visualização da memória do agente em tempo real.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

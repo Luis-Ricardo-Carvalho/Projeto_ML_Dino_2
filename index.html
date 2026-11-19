@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DinoRL — Laboratório de Q-Learning</title>
+    <meta
+      name="description"
+      content="Aplicação didática interativa para aprender Aprendizagem por Reforço e Q-Learning com o jogo do dinossauro e visualização em tempo real da Tabela Q."
+    />
+    <meta property="og:title" content="DinoRL — Laboratório de Q-Learning" />
+    <meta
+      property="og:description"
+      content="Observe o agente aprender a correr e saltar em tempo real usando Q-Learning, com inspeção dos estados e da Equação de Bellman."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="bg-slate-50 text-slate-900 antialiased selection:bg-sky-100 selection:text-sky-900">
+    <!-- Top Bar Contract: 3 zones separated by gap-8 -->
+    <header class="sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-slate-200">
+      <div class="max-w-[1380px] mx-auto px-6 h-16 flex items-center justify-between gap-8">
+        <a href="#simulacao" class="font-display text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0">
+          DinoRL
+        </a>
+
+        <nav class="hidden md:flex items-center gap-7 text-sm font-medium text-slate-600">
+          <a href="#simulacao" class="hover:text-slate-900 transition-colors whitespace-nowrap shrink-0">Simulação</a>
+          <a href="#tabela-q" class="hover:text-slate-900 transition-colors whitespace-nowrap shrink-0">Memória (Tabela Q)</a>
+          <a href="#bellman" class="hover:text-slate-900 transition-colors whitespace-nowrap shrink-0">Equação de Bellman</a>
+          <a href="#guia" class="hover:text-slate-900 transition-colors whitespace-nowrap shrink-0">Como Funciona</a>
+        </nav>
+
+        <div class="flex items-center shrink-0">
+          <button
+            id="btn-header-burst"
+            type="button"
+            class="px-4 py-2 text-xs font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800 active:translate-y-px transition-all whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            Treinar +25 Episódios
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-[1380px] mx-auto px-4 sm:px-6 py-8 space-y-8">
+      <!-- Intro Header -->
+      <section class="flex flex-col lg:flex-row lg:items-end justify-between gap-4 border-b border-slate-200 pb-6">
+        <div class="space-y-1.5 max-w-2xl">
+          <p class="text-xs font-medium text-sky-700 tracking-normal">
+            Aprendizagem por Reforço · Q-Learning Tabular
+          </p>
+          <h1 class="font-display text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 text-balance">
+            Ensine o Dinossauro a Correr e Saltar por Tentativa e Erro
+          </h1>
+          <p class="text-sm sm:text-[15px] text-slate-600 leading-relaxed">
+            O agente não conhece as regras do jogo. A cada instante ele observa a distância e a largura do próximo cacto,
+            decide entre <strong class="font-semibold text-sky-700">Correr</strong> ou
+            <strong class="font-semibold text-emerald-700">Saltar</strong>, e atualiza sua memória na Tabela Q com base na recompensa obtida.
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-6 text-xs text-slate-600 shrink-0 tabular-nums font-mono">
+          <div>
+            <span class="block font-sans text-[11px] text-slate-500">Episódio Atual</span>
+            <span id="metric-episode" class="text-lg font-semibold text-slate-900">1</span>
+          </div>
+          <div class="h-8 w-px bg-slate-200"></div>
+          <div>
+            <span class="block font-sans text-[11px] text-slate-500">Cactos (Atual / Recorde)</span>
+            <span class="text-lg font-semibold text-slate-900">
+              <span id="metric-score">0</span>
+              <span class="text-slate-400 font-normal">/</span>
+              <span id="metric-best" class="text-emerald-700">0</span>
+            </span>
+          </div>
+          <div class="h-8 w-px bg-slate-200"></div>
+          <div>
+            <span class="block font-sans text-[11px] text-slate-500">Taxa de Exploração (ε)</span>
+            <span id="metric-epsilon" class="text-lg font-semibold text-amber-700">35.0%</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Main Simulation Stage + Control Deck (Two-Zone Sandbox Layout) -->
+      <section id="simulacao" class="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+        <!-- Left / Top Zone: Interactive Stage (Canvas + Playback + Live State Bar) -->
+        <div class="xl:col-span-8 space-y-4">
+          <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <!-- Stage Toolbar -->
+            <div class="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70">
+              <div class="flex items-center gap-2">
+                <button
+                  id="btn-toggle-play"
+                  type="button"
+                  class="px-4 py-2 text-xs font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  Iniciar Treinamento
+                </button>
+                <button
+                  id="btn-step"
+                  type="button"
+                  class="px-3 py-2 text-xs font-medium rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                  title="Avança uma única decisão do agente"
+                >
+                  Passo a Passo
+                </button>
+                <button
+                  id="btn-reset-memory"
+                  type="button"
+                  class="px-3 py-2 text-xs font-medium rounded-lg bg-white border border-slate-300 text-slate-700 hover:text-red-700 hover:border-red-300 hover:bg-red-50/50 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  Zerar Memória
+                </button>
+              </div>
+
+              <!-- Speed & Mode Controls -->
+              <div class="flex flex-wrap items-center gap-3">
+                <div class="inline-flex items-center p-0.5 bg-slate-200/70 rounded-lg" role="group" aria-label="Velocidade da simulação">
+                  <button type="button" data-speed="1" class="speed-btn px-2.5 py-1 text-xs font-mono font-medium rounded-md bg-white text-slate-900 shadow-xs cursor-pointer whitespace-nowrap shrink-0">1x</button>
+                  <button type="button" data-speed="3" class="speed-btn px-2.5 py-1 text-xs font-mono font-medium rounded-md text-slate-600 hover:text-slate-900 cursor-pointer whitespace-nowrap shrink-0">3x</button>
+                  <button type="button" data-speed="10" class="speed-btn px-2.5 py-1 text-xs font-mono font-medium rounded-md text-slate-600 hover:text-slate-900 cursor-pointer whitespace-nowrap shrink-0">10x</button>
+                  <button type="button" data-speed="40" class="speed-btn px-2.5 py-1 text-xs font-mono font-medium rounded-md text-slate-600 hover:text-slate-900 cursor-pointer whitespace-nowrap shrink-0">Turbo</button>
+                </div>
+
+                <div class="inline-flex items-center p-0.5 bg-slate-200/70 rounded-lg" role="group" aria-label="Modo de controle">
+                  <button type="button" id="mode-ai" class="mode-btn px-2.5 py-1 text-xs font-medium rounded-md bg-white text-slate-900 shadow-xs cursor-pointer whitespace-nowrap shrink-0">
+                    Agente RL
+                  </button>
+                  <button type="button" id="mode-manual" class="mode-btn px-2.5 py-1 text-xs font-medium rounded-md text-slate-600 hover:text-slate-900 cursor-pointer whitespace-nowrap shrink-0">
+                    Manual (Espaço)
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Game Canvas -->
+            <div class="relative bg-white">
+              <canvas
+                id="game-canvas"
+                width="840"
+                height="270"
+                class="w-full h-auto block select-none"
+                aria-label="Arena do jogo do dinossauro com sensores de estado"
+              ></canvas>
+            </div>
+
+            <!-- Live Agent Perception Strip -->
+            <div class="px-4 py-3 border-t border-slate-200 bg-slate-50/70 flex flex-wrap items-center justify-between gap-4 text-xs">
+              <div class="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+                <div>
+                  <span class="text-slate-500">Estado Percebido:</span>
+                  <strong id="hud-state-label" class="font-mono font-semibold text-slate-900 ml-1">E11 · Livre (&gt;270px) · Estreito</strong>
+                </div>
+                <div>
+                  <span class="text-slate-500">Distância:</span>
+                  <strong id="hud-distance" class="font-mono font-semibold text-slate-900 ml-1 tabular-nums">-- px</strong>
+                </div>
+                <div>
+                  <span class="text-slate-500">Última Ação:</span>
+                  <strong id="hud-action" class="font-semibold text-sky-700 ml-1">→ Correr</strong>
+                  <span id="hud-policy-type" class="text-slate-500 ml-1">(Política)</span>
+                </div>
+              </div>
+
+              <label class="inline-flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer select-none">
+                <input id="toggle-sensors" type="checkbox" checked class="rounded border-slate-300 text-sky-600 focus:ring-sky-500" />
+                <span>Mostrar zonas de estado no jogo</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Learning Curve Canvas Card -->
+          <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 class="font-display text-base font-bold text-slate-900">Evolução do Aprendizado por Episódio</h2>
+                <p class="text-xs text-slate-500">Cactos superados em cada episódio e média móvel dos últimos 10 episódios.</p>
+              </div>
+              <div class="flex items-center gap-4 text-xs text-slate-600">
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="w-3 h-0.5 bg-sky-500 inline-block"></span>
+                  <span>Por episódio</span>
+                </span>
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="w-3 h-0.5 bg-emerald-600 inline-block"></span>
+                  <span>Média móvel (10)</span>
+                </span>
+              </div>
+            </div>
+            <div class="w-full h-44 relative">
+              <canvas id="chart-canvas" class="w-full h-full block"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Zone: Hyperparameters & Live Bellman Equation -->
+        <aside class="xl:col-span-4 space-y-4">
+          <!-- Hyperparameters Panel -->
+          <div class="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <h2 class="font-display text-base font-bold text-slate-900">Parâmetros do Agente</h2>
+              <button
+                id="btn-reset-params"
+                type="button"
+                class="text-xs font-medium text-sky-700 hover:underline cursor-pointer"
+              >
+                Padrão
+              </button>
+            </div>
+
+            <div class="space-y-4">
+              <!-- Alpha -->
+              <div class="space-y-1.5">
+                <div class="flex items-center justify-between text-xs">
+                  <label for="slider-alpha" class="font-semibold text-slate-800">Taxa de Aprendizagem (α)</label>
+                  <span id="val-alpha" class="font-mono font-semibold text-slate-900 tabular-nums">0.25</span>
+                </div>
+                <input id="slider-alpha" type="range" min="0.05" max="0.80" step="0.05" value="0.25" class="w-full accent-sky-600 cursor-pointer" />
+                <p class="text-[11px] text-slate-500 leading-snug">Controla o peso da experiência nova sobre o valor já memorizado na Tabela Q.</p>
+              </div>
+
+              <!-- Gamma -->
+              <div class="space-y-1.5">
+                <div class="flex items-center justify-between text-xs">
+                  <label for="slider-gamma" class="font-semibold text-slate-800">Fator de Desconto (γ)</label>
+                  <span id="val-gamma" class="font-mono font-semibold text-slate-900 tabular-nums">0.90</span>
+                </div>
+                <input id="slider-gamma" type="range" min="0.10" max="0.99" step="0.01" value="0.90" class="w-full accent-sky-600 cursor-pointer" />
+                <p class="text-[11px] text-slate-500 leading-snug">Define quanto o agente valoriza recompensas futuras em comparação ao ganho imediato.</p>
+              </div>
+
+              <!-- Epsilon -->
+              <div class="space-y-1.5">
+                <div class="flex items-center justify-between text-xs">
+                  <label for="slider-epsilon" class="font-semibold text-slate-800">Exploração Aleatória (ε)</label>
+                  <span id="val-epsilon" class="font-mono font-semibold text-amber-700 tabular-nums">35%</span>
+                </div>
+                <input id="slider-epsilon" type="range" min="0" max="1" step="0.01" value="0.35" class="w-full accent-amber-600 cursor-pointer" />
+                <div class="flex items-center justify-between pt-0.5">
+                  <label class="inline-flex items-center gap-2 text-[11px] text-slate-600 cursor-pointer">
+                    <input id="toggle-decay" type="checkbox" checked class="rounded border-slate-300 text-amber-600 focus:ring-amber-500" />
+                    <span>Reduzir ε automaticamente a cada episódio</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Reward Rules Reference -->
+            <div class="pt-3 border-t border-slate-200 space-y-2">
+              <div class="text-xs font-semibold text-slate-800">Sinais de Recompensa (R)</div>
+              <div class="grid grid-cols-2 gap-2 text-xs font-mono tabular-nums">
+                <div class="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between">
+                  <span class="font-sans text-slate-600">Correr vivo</span>
+                  <span class="font-semibold text-sky-700">+0.5</span>
+                </div>
+                <div class="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between">
+                  <span class="font-sans text-slate-600">Superar cacto</span>
+                  <span class="font-semibold text-emerald-700">+20.0</span>
+                </div>
+                <div class="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between">
+                  <span class="font-sans text-slate-600">Saltar à toa</span>
+                  <span class="font-semibold text-amber-700">-20.0</span>
+                </div>
+                <div class="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between">
+                  <span class="font-sans text-slate-600">Colisão</span>
+                  <span class="font-semibold text-red-700">-100</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Bellman Equation Inspector -->
+          <div id="bellman" class="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
+            <div>
+              <h2 class="font-display text-base font-bold text-slate-900">Atualização da Memória ao Vivo</h2>
+              <p class="text-xs text-slate-500">Equação de Bellman aplicada na última transição concluída.</p>
+            </div>
+
+            <div class="p-3 rounded-lg bg-slate-900 text-slate-100 font-mono text-[11px] leading-relaxed overflow-x-auto">
+              Q(s, a) ← Q(s, a) + α · [ R + γ · max Q(s′, a′) − Q(s, a) ]
+            </div>
+
+            <div id="bellman-live-box" class="space-y-2.5 text-xs">
+              <div class="grid grid-cols-2 gap-2 font-mono tabular-nums">
+                <div class="p-2 rounded-lg bg-slate-50 border border-slate-200">
+                  <span class="block font-sans text-[11px] text-slate-500">Estado (s) → Ação (a)</span>
+                  <span id="bel-sa" class="font-semibold text-slate-900">Aguardando passo...</span>
+                </div>
+                <div class="p-2 rounded-lg bg-slate-50 border border-slate-200">
+                  <span class="block font-sans text-[11px] text-slate-500">Recompensa (R)</span>
+                  <span id="bel-r" class="font-semibold text-slate-900">--</span>
+                </div>
+              </div>
+
+              <div class="p-3 rounded-lg bg-slate-50 border border-slate-200 font-mono text-[11.5px] leading-relaxed tabular-nums space-y-1">
+                <div class="text-slate-600" id="bel-substitution">
+                  Inicie a simulação ou clique em "Passo a Passo" para ver o cálculo.
+                </div>
+                <div class="flex items-center justify-between pt-1 border-t border-slate-200 font-semibold">
+                  <span class="text-slate-700">Resultado na Tabela Q:</span>
+                  <span id="bel-result" class="text-slate-900">--</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <!-- Real-Time Agent Memory (Q-Table Matrix + State Space Inspector) -->
+      <section id="tabela-q" class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h2 class="font-display text-lg font-bold text-slate-900">Memória do Agente — Tabela Q em Tempo Real</h2>
+            <p class="text-xs sm:text-sm text-slate-600">
+              Cada linha representa um dos <strong>12 estados</strong> possíveis (6 faixas de distância × 2 tipos de cacto).
+              Os valores atualizam e piscam no instante em que o agente aprende.
+            </p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="inline-flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200" role="group" aria-label="Filtro de estados">
+              <button type="button" data-filter="all" class="filter-btn px-3 py-1.5 text-xs font-medium rounded-md bg-white text-slate-900 shadow-xs cursor-pointer whitespace-nowrap shrink-0">
+                Todos os 12 Estados
+              </button>
+              <button type="button" data-filter="narrow" class="filter-btn px-3 py-1.5 text-xs font-medium rounded-md text-slate-600 hover:text-slate-900 cursor-pointer whitespace-nowrap shrink-0">
+                Cacto Estreito
+              </button>
+              <button type="button" data-filter="wide" class="filter-btn px-3 py-1.5 text-xs font-medium rounded-md text-slate-600 hover:text-slate-900 cursor-pointer whitespace-nowrap shrink-0">
+                Cacto Largo
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Visual Heatmap Strip Summary + Full Table -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-slate-200 bg-slate-50/90 text-[11px] font-semibold text-slate-600">
+                <th class="py-3 px-4 w-16">ID</th>
+                <th class="py-3 px-4">Estado (Distância até o Cacto · Obstáculo)</th>
+                <th class="py-3 px-4 w-56">Q(s, → Correr)</th>
+                <th class="py-3 px-4 w-56">Q(s, ↑ Saltar)</th>
+                <th class="py-3 px-4 w-44">Decisão Aprendida π(s)</th>
+                <th class="py-3 px-4 w-24 text-right">Visitas</th>
+              </tr>
+            </thead>
+            <tbody id="qtable-body" class="divide-y divide-slate-200 text-xs sm:text-[13px]">
+              <!-- Populated and updated live via JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="px-5 py-3 border-t border-slate-200 bg-slate-50/70 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
+          <div class="flex flex-wrap items-center gap-5">
+            <span class="inline-flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-xs bg-sky-600 inline-block"></span>
+              <span>Valor Q positivo (Correr favorável)</span>
+            </span>
+            <span class="inline-flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-xs bg-emerald-600 inline-block"></span>
+              <span>Valor Q positivo (Saltar favorável)</span>
+            </span>
+            <span class="inline-flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-xs bg-red-600 inline-block"></span>
+              <span>Valor Q negativo (evitar ação)</span>
+            </span>
+          </div>
+          <span class="font-mono text-[11px] text-slate-500">
+            Linha destacada em azul claro = Estado percebido agora pelo dinossauro
+          </span>
+        </div>
+      </section>
+
+      <!-- Didactic State Space & RL Guide -->
+      <section id="guia" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <article class="bg-white border border-slate-200 rounded-xl p-5 space-y-2.5">
+          <h3 class="font-display text-base font-bold text-slate-900">1. O que são os Estados (S)?</h3>
+          <p class="text-xs sm:text-sm text-slate-600 leading-relaxed">
+            Em vez de usar milhares de pixels da tela, simplificamos a visão do dinossauro em
+            <strong>6 zonas de distância</strong> (da zona crítica de 0–40 px até pista livre &gt;270 px) combinadas com
+            <strong>2 larguras de cacto</strong> (estreito ou largo). Isso forma uma memória enxuta com 12 estados fáceis de observar.
+          </p>
+        </article>
+
+        <article class="bg-white border border-slate-200 rounded-xl p-5 space-y-2.5">
+          <h3 class="font-display text-base font-bold text-slate-900">2. Exploração vs. Explotação</h3>
+          <p class="text-xs sm:text-sm text-slate-600 leading-relaxed">
+            No início, a Tabela Q vale zero e o agente usa <strong>Exploração (ε)</strong> para testar ações aleatórias e descobrir o que dá errado ou certo.
+            Com o tempo, ε diminui e o agente passa a usar <strong>Explotação</strong>, escolhendo sempre a ação de maior valor Q.
+          </p>
+        </article>
+
+        <article class="bg-white border border-slate-200 rounded-xl p-5 space-y-2.5">
+          <h3 class="font-display text-base font-bold text-slate-900">3. Por que ele aprende a hora certa?</h3>
+          <p class="text-xs sm:text-sm text-slate-600 leading-relaxed">
+            Saltar longe demais gera uma penalidade (-20.0), enquanto correr gera +0.5.
+            Já saltar dentro da janela ideal (40–130 px) faz o dinossauro cruzar o cacto e ganhar <strong>+20.0</strong>.
+            Se correr perto demais, colide (-100) e rapidamente evita correr naquela zona.
+          </p>
+        </article>
+      </section>
+    </main>
+
+    <footer class="max-w-[1380px] mx-auto px-4 sm:px-6 py-6 border-t border-slate-200 mt-4 flex flex-wrap items-center justify-between gap-4 text-xs text-slate-500">
+      <span>DinoRL · Simulador Educacional de Aprendizagem por Reforço (HTML, CSS e JavaScript)</span>
+      <span>Controles manuais no modo Manual: Espaço ou Seta para Cima para saltar</span>
+    </footer>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
